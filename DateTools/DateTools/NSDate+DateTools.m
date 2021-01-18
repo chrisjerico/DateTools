@@ -818,7 +818,7 @@ static NSCalendar *implicitCalendar = nil;
 	dispatch_once(&onceToken, ^{
 	    parser = [[NSDateFormatter alloc] init];
 	});
-
+    parser.calendar.locale = locale;
 	parser.dateStyle = NSDateFormatterNoStyle;
 	parser.timeStyle = NSDateFormatterNoStyle;
 	parser.timeZone = timeZone;
