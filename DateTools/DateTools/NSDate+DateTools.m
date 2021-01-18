@@ -811,21 +811,56 @@ static NSCalendar *implicitCalendar = nil;
 	return [self dateWithString:dateString formatString:formatString timeZone:[NSTimeZone systemTimeZone]];
 }
 
-+ (NSDate *)dateWithString:(NSString *)dateString formatString:(NSString *)formatString timeZone:(NSTimeZone *)timeZone {
-
-	static NSDateFormatter *parser = nil;
-	static dispatch_once_t onceToken;
-	dispatch_once(&onceToken, ^{
-	    parser = [[NSDateFormatter alloc] init];
-	});
-    parser.calendar.locale = locale;
-	parser.dateStyle = NSDateFormatterNoStyle;
-	parser.timeStyle = NSDateFormatterNoStyle;
-	parser.timeZone = timeZone;
-	parser.dateFormat = formatString;
-
-	return [parser dateFromString:dateString];
++ (NSDate *)dateWithString:(NSString *)dateString formatString:(NSString *)formatString locale:(NSLocale *)locale
+{
+    return [self dateWithString:dateString formatString:formatString timeZone:[NSTimeZone systemTimeZone] locale:locale];
 }
+
++ (NSDate *)dateWithString:(NSString *)dateString formatString:(NSString *)formatString timeZone:(NSTimeZone *)timeZone
+{
+    return [self dateWithString:dateString formatString:formatString timeZone:timeZone locale:nil];
+}
+
++ (NSDate *)dateWithString:(NSString *)dateString formatString:(NSString *)formatString timeZone:(NSTimeZone *)timeZone locale:(NSLocale *)locale {
+
+    static NSDateFormatter *parser = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        parser = [[NSDateFormatter alloc] init];
+    });
+    
+    // 加入一个同步队列让多线程排队，在多线程冲突的时候会稍微影响点性能
+    static dispatch_queue_t parseQueue;
+    static dispatch_once_t queueOnceToken;
+    dispatch_once(&queueOnceToken, ^{
+        parseQueue = dispatch_queue_create([@"DateToolsParseQueue" UTF8String], NULL);
+    });
+    
+    __block NSDate *date = nil;
+    
+    dispatch_sync(parseQueue, ^{
+        if (locale) {
+            parser.locale = locale;
+        } else {
+            parser.locale = [NSLocale autoupdatingCurrentLocale];
+        }
+        
+        parser.dateStyle = NSDateFormatterNoStyle;
+        parser.timeStyle = NSDateFormatterNoStyle;
+        parser.timeZone = timeZone;
+        parser.dateFormat = formatString;
+        parser.calendar = [NSCalendar autoupdatingCurrentCalendar];
+        if (@available(iOS 10.0, *)) {
+            if (locale) {
+                parser.calendar = [NSCalendar calendarWithIdentifier:locale.calendarIdentifier];
+            }
+        }
+        date = [parser dateFromString:dateString];
+    });
+    
+    return date;
+}
+
 
 
 #pragma mark - Date Editing
